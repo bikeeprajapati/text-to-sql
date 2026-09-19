@@ -1,15 +1,29 @@
 from fastapi import APIRouter
-from app.schemas.chat import ChatRequest, ChatResponse
+from app.schemas.chat import ChatRequest, ChatResponse, ClarificationQuestion
 from app.schemas.common import QueryStatus
+from app.database.schema_inspector import get_database_schema
+from app.services.clarification import check_clarification_needed
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("", response_model=ChatResponse)
 def send_message(payload: ChatRequest):
+    """Handle a new chat message."""
+    schema = get_database_schema()
+
+    result = check_clarification_needed(payload.message, schema)
+
+    if result["needs_clarification"]:
+        return ChatResponse(
+            session_id=payload.session_id or "stub_session",
+            status=QueryStatus.CLARIFICATION_NEEDED,
+            message="I need a bit more information.",
+            clarification=ClarificationQuestion(question=result["question"])
+        )
+
     return ChatResponse(
         session_id=payload.session_id or "stub_session",
-        status=QueryStatus.CLARIFICATION_NEEDED,
-        message="Stub response - service logic not yet wired in."
-    )   
-
+        status=QueryStatus.SQL_GENERATED,
+        message="Question is clear - SQL generation not implemented yet."
+    )
