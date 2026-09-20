@@ -23,10 +23,15 @@ then generates and runs SQL.
 - database/connection.py - SQLAlchemy engine, connects to Supabase Postgres
 - database/schema_inspector.py - get_database_schema() introspects real tables/columns
 - services/llm_service.py - ask_llm(prompt) wraps Groq API (model: openai/gpt-oss-20b)
+- services/clarification.py - format_schema_for_prompt() + check_clarification_needed()
+  - full clarification engine working end-to-end: formats schema -> builds prompt ->
+    calls Groq -> parses JSON -> returns {needs_clarification, question}
 - schemas/*.py - Pydantic request/response shapes for chat, schema, history
 - api/schema.py - GET /api/schema returns real live schema data
-- api/chat.py - stub only, returns hardcoded response
+- api/chat.py - POST /api/chat wired to the clarification engine, tested live via /docs
+  (both clarification_needed and sql_generated branches confirmed working)
 - api/history.py - stub only, returns empty list
+
 
 ### In progress
 - services/clarification.py
@@ -42,7 +47,6 @@ then generates and runs SQL.
 - services/sql_validator.py - check generated SQL is safe before running
 - services/query_executor.py - actually run the SQL, return rows
 - models/ - SQLAlchemy tables for the app's own storage (chat sessions, history)
-- Wiring api/chat.py to call the real services instead of returning a stub
 - tests/ - nothing written yet
 
 ## Gotchas learned the hard way
