@@ -3,7 +3,7 @@ from app.schemas.chat import ChatRequest, ChatResponse, ClarificationQuestion
 from app.schemas.common import QueryStatus
 from app.database.schema_inspector import get_database_schema
 from app.services.clarification import check_clarification_needed
-
+from app.services.sql_generator import generate_sql
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
@@ -22,8 +22,11 @@ def send_message(payload: ChatRequest):
             clarification=ClarificationQuestion(question=result["question"])
         )
 
+    generated_sql = generate_sql(payload.message, schema)
+
     return ChatResponse(
         session_id=payload.session_id or "stub_session",
         status=QueryStatus.SQL_GENERATED,
-        message="Question is clear - SQL generation not implemented yet."
+        message="Here's the generated SQL.",
+        generated_sql=generated_sql
     )
