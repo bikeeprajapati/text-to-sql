@@ -5,6 +5,7 @@ from app.database.schema_inspector import get_database_schema
 from app.services.clarification import check_clarification_needed
 from app.services.sql_generator import generate_sql
 from app.services.sql_validator import is_sql_safe
+from app.services.query_executor import execute_sql
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
@@ -25,8 +26,6 @@ def send_message(payload: ChatRequest):
 
     generated_sql = generate_sql(payload.message, schema)
 
-# with status=QueryStatus.FAILED and an appropriate message, generated_sql=None
-
     if not is_sql_safe(generated_sql):
         return ChatResponse(
             session_id=payload.session_id or "stub_session",
@@ -34,10 +33,20 @@ def send_message(payload: ChatRequest):
             message="The generated SQL is not safe to execute.",
             generated_sql=None
         )
-
+    # Execute the generated SQL and return the results
+    results = execute_sql(generated_sql)
+    if results is None:
+        return ChatResponse(
+            session_id=payload.session_id or "stub_session",
+            status=QueryStatus.FAILED,
+            message="Failed to execute the generated SQL.",
+            generated_sql=None
+        )
+    
     return ChatResponse(
     session_id=payload.session_id or "stub_session",
-    status=QueryStatus.SQL_GENERATED,
+    status=QueryStatus.EXECUTED,
     message="Here's the generated SQL.",
-    generated_sql=generated_sql
+    generated_sql=generated_sql,
+    result=results
 )
