@@ -33,7 +33,6 @@ def send_message(payload: ChatRequest):
             message="The generated SQL is not safe to execute.",
             generated_sql=None
         )
-    # Execute the generated SQL and return the results
     results = execute_sql(generated_sql)
     if results is None:
         return ChatResponse(
