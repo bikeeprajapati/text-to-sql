@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.schemas.chat import ChatRequest, ChatResponse, ClarificationQuestion
 from app.schemas.common import QueryStatus
@@ -19,11 +19,20 @@ def send_message(payload: ChatRequest, db: Session = Depends(get_db)):
     schema = get_database_schema()
 
     # Get or create the session (always creates new, for now)
-    new_session = ChatSession()
-    db.add(new_session)
-    db.commit()
-    db.refresh(new_session)
-    session_id = new_session.id
+    if payload.session_id is None:
+        session = ChatSession()
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+    else:
+        try:
+            session = db.get(ChatSession, int(payload.session_id))
+        except ValueError:
+            session = None
+        if session is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+    session_id = session.id
 
     # Save the incoming user message
     user_message = ChatMessage(
@@ -34,8 +43,13 @@ def send_message(payload: ChatRequest, db: Session = Depends(get_db)):
     )
     db.add(user_message)
     db.commit()
+    conversation = "\n".join(
+        f"{m.role}: {m.content}"
+        for m in session.messages
+        if m.message_type != "sql_result"
+    )
 
-    result = check_clarification_needed(payload.message, schema)
+    result = check_clarification_needed(conversation, schema)    
 
     if result["needs_clarification"]:
         clarification_message = ChatMessage(
@@ -54,7 +68,7 @@ def send_message(payload: ChatRequest, db: Session = Depends(get_db)):
             clarification=ClarificationQuestion(question=result["question"])
         )
 
-    generated_sql = generate_sql(payload.message, schema)
+    generated_sql = generate_sql(conversation, schema)
 
     if not is_sql_safe(generated_sql):
         return ChatResponse(

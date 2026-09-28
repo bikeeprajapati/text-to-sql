@@ -3,12 +3,13 @@ from app.services.llm_service import ask_llm
 from app.services.clarification import format_schema_for_prompt
 
 
-SQL_GENERATION_PROMPT_TEMPLATE = """You are a text-to-SQL assistant. Given a database schema and a user's question, write a single read-only SQL query (SELECT only - never INSERT, UPDATE, DELETE, or DROP) that answers it.
+SQL_GENERATION_PROMPT_TEMPLATE = """You are a text-to-SQL assistant. Given a database schema and a conversation with a user, write a single read-only SQL query (SELECT only - never INSERT, UPDATE, DELETE, or DROP) that answers what the user wants.
 
 Database schema:
 {schema}
 
-User's question: "{question}"
+Conversation so far (the user's later messages may answer clarifying questions asked earlier; follow those answers exactly):
+{question}
 
 Respond with ONLY valid JSON, no other text, in exactly this format:
 {{"sql": "SELECT ... ;"}}
