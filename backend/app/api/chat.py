@@ -15,6 +15,17 @@ from app.models.user import User
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
+def _save_message(db: Session, session_id: int, role: str, message_type: str, content: str) -> None:
+    message = ChatMessage(
+        session_id=session_id,
+        role=role,
+        message_type=message_type,
+        content=content
+    )
+    db.add(message)
+    db.commit()
+
+
 @router.post("", response_model=ChatResponse)
 def send_message(payload: ChatRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Handle a new chat message."""
@@ -36,15 +47,9 @@ def send_message(payload: ChatRequest, db: Session = Depends(get_db), current_us
 
     session_id = session.id
 
-    # Save the incoming user message
-    user_message = ChatMessage(
-        session_id=session_id,
-        role="user",
-        message_type="question",
-        content=payload.message
-    )
-    db.add(user_message)
-    db.commit()
+    _save_message(db, session_id, "user", "question", payload.message)
+
+    # Build the conversation so far, so the AI sees earlier questions and answers
     conversation = "\n".join(
         f"{m.role}: {m.content}"
         for m in session.messages
@@ -54,14 +59,7 @@ def send_message(payload: ChatRequest, db: Session = Depends(get_db), current_us
     result = check_clarification_needed(conversation, schema)
 
     if result["needs_clarification"]:
-        clarification_message = ChatMessage(
-            session_id=session_id,
-            role="assistant",
-            message_type="clarification_question",
-            content=result["question"]
-        )
-        db.add(clarification_message)
-        db.commit()
+        _save_message(db, session_id, "assistant", "clarification_question", result["question"])
 
         return ChatResponse(
             session_id=str(session_id),
@@ -72,30 +70,38 @@ def send_message(payload: ChatRequest, db: Session = Depends(get_db), current_us
 
     generated_sql = generate_sql(conversation, schema)
 
-    if not is_sql_safe(generated_sql):
+    if generated_sql is None:
+        error_message = "I couldn't generate a SQL query for that. Try rephrasing."
+        _save_message(db, session_id, "assistant", "error", error_message)
         return ChatResponse(
             session_id=str(session_id),
             status=QueryStatus.FAILED,
-            message="The generated SQL is not safe to execute.",
-            generated_sql=None
-        )
-    results = execute_sql(generated_sql)
-    if results is None:
-        return ChatResponse(
-            session_id=str(session_id),
-            status=QueryStatus.FAILED,
-            message="Failed to execute the generated SQL.",
+            message=error_message,
             generated_sql=None
         )
 
-    result_message = ChatMessage(
-        session_id=session_id,
-        role="assistant",
-        message_type="sql_result",
-        content=generated_sql
-    )
-    db.add(result_message)
-    db.commit()
+    if not is_sql_safe(generated_sql):
+        error_message = "The generated SQL is not safe to execute."
+        _save_message(db, session_id, "assistant", "error", error_message)
+        return ChatResponse(
+            session_id=str(session_id),
+            status=QueryStatus.FAILED,
+            message=error_message,
+            generated_sql=None
+        )
+
+    results = execute_sql(generated_sql)
+    if results is None:
+        error_message = "Failed to execute the generated SQL."
+        _save_message(db, session_id, "assistant", "error", error_message)
+        return ChatResponse(
+            session_id=str(session_id),
+            status=QueryStatus.FAILED,
+            message=error_message,
+            generated_sql=None
+        )
+
+    _save_message(db, session_id, "assistant", "sql_result", generated_sql)
 
     return ChatResponse(
         session_id=str(session_id),

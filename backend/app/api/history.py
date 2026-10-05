@@ -19,7 +19,7 @@ def get_history(session_id: str, db: Session = Depends(get_db), current_user: Us
     if session is None or session.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    messages = session.messages  # already ordered by id, via the relationship
+    messages = session.messages
 
     items = []
     for i, message in enumerate(messages):
@@ -36,6 +36,9 @@ def get_history(session_id: str, db: Session = Depends(get_db), current_user: Us
             generated_sql = next_message.content
         elif next_message.message_type == "clarification_question":
             status = QueryStatus.CLARIFICATION_NEEDED
+            generated_sql = None
+        elif next_message.message_type == "error":
+            status = QueryStatus.FAILED
             generated_sql = None
         else:
             continue
