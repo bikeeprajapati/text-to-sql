@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import chat, schema, history
+from app.api import chat, schema, history, auth
 
 app = FastAPI(
     title="Text-to-SQL API",
@@ -27,3 +28,4 @@ def health_check():
 app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(schema.router, prefix="/api", tags=["schema"])
 app.include_router(history.router, prefix="/api", tags=["history"])
+app.include_router(auth.router, prefix="/api", tags=["auth"])

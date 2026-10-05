@@ -9,18 +9,20 @@ from app.services.clarification import check_clarification_needed
 from app.services.sql_generator import generate_sql
 from app.services.sql_validator import is_sql_safe
 from app.services.query_executor import execute_sql
+from app.services.auth_dependency import get_current_user
+from app.models.user import User
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("", response_model=ChatResponse)
-def send_message(payload: ChatRequest, db: Session = Depends(get_db)):
+def send_message(payload: ChatRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Handle a new chat message."""
     schema = get_database_schema()
 
-    # Get or create the session (always creates new, for now)
+    # Reuse the session if session_id was sent and it belongs to this user, otherwise create a new one
     if payload.session_id is None:
-        session = ChatSession()
+        session = ChatSession(user_id=current_user.id)
         db.add(session)
         db.commit()
         db.refresh(session)
@@ -29,7 +31,7 @@ def send_message(payload: ChatRequest, db: Session = Depends(get_db)):
             session = db.get(ChatSession, int(payload.session_id))
         except ValueError:
             session = None
-        if session is None:
+        if session is None or session.user_id != current_user.id:
             raise HTTPException(status_code=404, detail="Session not found")
 
     session_id = session.id
@@ -49,7 +51,7 @@ def send_message(payload: ChatRequest, db: Session = Depends(get_db)):
         if m.message_type != "sql_result"
     )
 
-    result = check_clarification_needed(conversation, schema)    
+    result = check_clarification_needed(conversation, schema)
 
     if result["needs_clarification"]:
         clarification_message = ChatMessage(
