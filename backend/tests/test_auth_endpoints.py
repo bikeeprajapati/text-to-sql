@@ -111,3 +111,35 @@ def test_user_cannot_read_another_users_session(monkeypatch):
     # A different user gets a 404, as if the session didn't exist
     other_history = client.get(f"/api/history?session_id={session_id}", headers=other_headers)
     assert other_history.status_code == 404
+
+
+def test_register_rejects_a_password_longer_than_72_bytes():
+    response = client.post("/api/auth/register", json={"email": _unique_email(), "password": "a" * 73})
+
+    assert response.status_code == 422
+
+
+def test_register_counts_bytes_not_characters():
+    # 40 two-byte characters is only 40 characters long, but 80 bytes
+    response = client.post("/api/auth/register", json={"email": _unique_email(), "password": "é" * 40})
+
+    assert response.status_code == 422
+
+
+def test_register_rejects_a_password_shorter_than_8_characters():
+    response = client.post("/api/auth/register", json={"email": _unique_email(), "password": "short"})
+
+    assert response.status_code == 422
+
+
+def test_login_rejects_a_password_longer_than_72_bytes():
+    response = client.post("/api/auth/login", json={"email": _unique_email(), "password": "a" * 73})
+
+    assert response.status_code == 422
+
+
+def test_register_accepts_a_password_of_exactly_72_bytes():
+    response = client.post("/api/auth/register", json={"email": _unique_email(), "password": "a" * 72})
+
+    assert response.status_code == 200
+    assert response.json()["access_token"]
