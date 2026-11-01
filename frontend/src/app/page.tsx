@@ -1,39 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { register, sendMessage, getHistory, getToken } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
+import { ROUTES } from "@/constants/routes";
+import { useRequireAuth } from "@/hooks/useAuth";
+import { logout } from "@/lib/api/auth";
 
 export default function Home() {
-  const [output, setOutput] = useState("Click the button to test the API client.");
-  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const signedIn = useRequireAuth();
 
-  async function runTest() {
-    setLoading(true);
-    try {
-      const email = `frontend_test_${Date.now()}@example.com`;
-      await register(email, "testpassword123");
-      const chat = await sendMessage("show me all customers", null);
-      const history = await getHistory(chat.session_id);
-      setOutput(
-        JSON.stringify({ email, tokenStored: Boolean(getToken()), chat, history }, null, 2)
-      );
-    } catch (error) {
-      setOutput(error instanceof Error ? `Error: ${error.message}` : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
+  // While we check (or while redirecting to sign in) render nothing
+  if (!signedIn) return null;
+
+  function handleSignOut() {
+    logout();
+    router.replace(ROUTES.signIn);
   }
 
   return (
-    <main className="p-8 font-mono text-sm">
-      <button
-        onClick={runTest}
-        disabled={loading}
-        className="mb-4 rounded bg-black px-4 py-2 text-white disabled:opacity-50"
-      >
-        {loading ? "Running..." : "Test API"}
-      </button>
-      <pre className="whitespace-pre-wrap">{output}</pre>
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
+      <h1 className="text-2xl font-semibold">You&apos;re signed in</h1>
+      <p className="text-zinc-500">The chat page comes next.</p>
+      <Button onClick={handleSignOut}>Sign out</Button>
     </main>
   );
 }
